@@ -16,7 +16,7 @@ public interface IGrabble
 
 public interface IDroppable
 {
-    Transform Drop();
+    void Drop();
 }
 
 

@@ -21,5 +21,7 @@ public class TriggerCube : MonoBehaviour
     public void InteractAction()
     {
         animator.SetTrigger("CubeTouched");
+        
+        InterfaceManager.Instance.WinGame("Congratulations - You clicked on the lever to open the invisible door!");
     }
 }

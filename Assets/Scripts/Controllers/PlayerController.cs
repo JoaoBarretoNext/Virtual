@@ -16,10 +16,17 @@ public class PlayerController : MonoBehaviour
 
 
     bool foundCube;
+    bool playerNearCube;
     Transform objectToGrab;
     [SerializeField]
     Transform placeToPostitionGrabbedObject;
 
+    [SerializeField]
+    float totalMovementTime = 1f; //the amount of time you want the movement to take
+
+    float currentMovementTime = 0f;//The amount of time that has passed
+
+    Vector3 cubeOrigin;
 
     //booleans
     bool canGrab;
@@ -39,27 +46,28 @@ public class PlayerController : MonoBehaviour
 
     private void InteractWithWorld()
     {
-        ray = GetMouseRay();
+        
 
         
         //if clicks left mouse, turns cube blueish(attract)
         if (Input.GetMouseButtonDown(0))
         {
             foundCube = false;
+            ray = GetMouseRay();
             hits = Physics.RaycastAll(ray.origin, ray.direction, 1000f);
 
             closestsObjectDistance = hits[0].distance;
             for (int i = 0; i < hits.Length; i++)
             {
-                Debug.Log(hits[i].collider.name);
+                
                 if (hits[i].collider.CompareTag("GRAVITY_CUBE"))
                 {
-                    Debug.Log("Entrei aqui no collider");
+                   
                     if(hits[i].distance < closestsObjectDistance)
                     {
                         closestsObjectDistance = hits[i].distance;
                         hit = hits[i];
-                        Debug.Log("A distancia é: " + hits[i].distance);
+                        
                         foundCube = true;
                     }
                 }
@@ -77,20 +85,21 @@ public class PlayerController : MonoBehaviour
         else if (Input.GetMouseButtonDown(1))
         {
             foundCube = false;
+            ray = GetMouseRay();
             hits = Physics.RaycastAll(ray.origin, ray.direction, 1000f);
 
             closestsObjectDistance = hits[0].distance;
             for (int i = 0; i < hits.Length; i++)
             {
-                Debug.Log(hits[i].collider.name);
+              
                 if (hits[i].collider.CompareTag("GRAVITY_CUBE"))
                 {
-                    Debug.Log("Entrei aqui no collider");
+                   
                     if (hits[i].distance < closestsObjectDistance)
                     {
                         closestsObjectDistance = hits[i].distance;
                         hit = hits[i];
-                        Debug.Log("A distancia é: " + hits[i].distance);
+                       
                         foundCube = true;
                     }
                 }
@@ -102,29 +111,59 @@ public class PlayerController : MonoBehaviour
         }
 
 
-        Physics.Raycast(ray.origin, ray.direction, out hit, 1000f);
+        //Physics.Raycast(ray.origin, ray.direction, out hit, 1000f);
         //he has to be looking in same direction for grabbing to avoid object being grabbed if the player is looking elsewhere
         if (Input.GetKeyDown(KeyCode.E))
         {
-            var grabbale = hit.transform.GetComponent<IGrabble>();
-            if (grabbale != null && canGrab)
-            {
-                GrabObject(grabbale.Grab());
-                return;
+            ray = GetMouseRay();
+            hits = Physics.RaycastAll(ray.origin, ray.direction, 1000f);
 
-            }
+            closestsObjectDistance = hits[0].distance;
+            for (int i = 0; i < hits.Length; i++)
+            {
                 
-            if (!canGrab)
-            {
-                DropObject();
-                return;
+                if (hits[i].collider.CompareTag("GRAVITY_CUBE"))
+                {
+            
+                    if (hits[i].distance < closestsObjectDistance)
+                    {
+                        closestsObjectDistance = hits[i].distance;
+                        hit = hits[i];
+                        
+                        foundCube = true;
+                    }
+                }
+                if (i == hits.Length - 1 && foundCube)
+                {
+                    var grabbale = hit.transform.GetComponent<IGrabble>();
+                    if (grabbale != null && canGrab)
+                    {
+                        GrabObject(grabbale.Grab());
+                        return;
+
+                    }
+
+                    if (!canGrab)
+                    {
+                        DropObject();
+                        return;
+                    }
+
+                    var interactable = hit.transform.GetComponent<IInteractable>();
+                    if (interactable != null)
+                    {
+                        interactable.InteractAction();
+                    }
+                }
             }
 
-            var interactable = hit.transform.GetComponent<IInteractable>();
-            if (interactable != null)
-            {
-                interactable.InteractAction();
-            }
+            
+        }
+
+
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            InterfaceManager.Instance.PauseGameEscape("Paused Game");
         }
            
             
@@ -139,26 +178,63 @@ public class PlayerController : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        if (other.CompareTag("GRAVITY_CUBE"))
+        if (other.CompareTag("GRAVITY_CUBE") || other.CompareTag("PLATFORM"))
         {
+            playerNearCube = true;
+        }
+    }
 
+    private void OnTriggerStay(Collider other)
+    {
+        if (other.CompareTag("GRAVITY_CUBE") || other.CompareTag("PLATFORM"))
+        {
+            playerNearCube = true;
+        }
+    }
+
+    private void OnTriggerExit(Collider other)
+    {
+        if (other.CompareTag("GRAVITY_CUBE") || other.CompareTag("PLATFORM"))
+        {
+            playerNearCube = false;
+        }
+        if (other.CompareTag("DEATH"))
+        {
+            
+            APPManager.Instance.ResetGame();
         }
     }
 
     private void GrabObject(Transform trans)
     {
         objectToGrab = trans;
-        trans.SetParent(transform);
-        trans.position = placeToPostitionGrabbedObject.position;
+        cubeOrigin = objectToGrab.position;
+        objectToGrab.SetParent(transform);
+        StartCoroutine(MoveObject(cubeOrigin));
+        //objectToGrab.position = placeToPostitionGrabbedObject.position;
         canGrab = false;
     }
 
     private void DropObject() //verify detrod o cube se tiver dentro e algum ele faz snap para o local
     {
+        
         objectToGrab.SetParent(null);
         objectToGrab.GetComponent<IDroppable>().Drop();
         //trans.position = placeToPostitionGrabbedObject.position;
         canGrab = true;
+    }
+
+    public IEnumerator MoveObject(Vector3 origin)
+    {
+       
+        while (Vector3.Distance(objectToGrab.position, placeToPostitionGrabbedObject.position) > 0.1f)
+        {
+            currentMovementTime += Time.deltaTime;
+           
+            objectToGrab.position = Vector3.Lerp(origin, placeToPostitionGrabbedObject.position, currentMovementTime / totalMovementTime);
+            yield return null;
+        }
+        currentMovementTime = 0;
     }
 
     private Ray GetMouseRay()
